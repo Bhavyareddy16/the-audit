@@ -27,10 +27,11 @@ Based on a quantitative trade-off evaluation under our hardware, reviewer, and t
 * > [!WARNING]
   > **Critical Reviewer Caveat**: Because the native reviewer covers **Hindi and Kannada only**, direct human pairwise validation is capped at 450 pairs per language. Quality for **Tamil, Telugu, Bengali, and Marathi** must rely on automated metrics (chrF++, BLEU, length/casual dictionary checks) and cross-lingual transfer from Hindi/Kannada training.
 
-### Explicit Model & Serving Assumptions
-1. *Assumption (Rewriter VRAM)*: A $\le 1\text{B}$ FP16 rewriter model requires approximately **2.0 GB VRAM** for weights plus runtime overhead on the L4 GPU.
-2. *Assumption (Rewriter Latency)*: Executing a second 1B model pass per request adds **+35–45 ms** inter-token/prefill latency per request.
-3. *Assumption (Synthetic Generation Speed)*: Running open `Qwen2.5-72B-Instruct` (INT4) locally on 1× A100-80GB generates ~25 tokens/s.
+### Explicit Model & Serving Assumptions (Estimates)
+1. *Assumption (Rewriter VRAM Estimate)*: A $\le 1\text{B}$ FP16 rewriter model requires an estimated **2.0 GB VRAM** for weights plus runtime overhead on the L4 GPU.
+2. *Assumption (Rewriter Latency Estimate)*: Executing a second 1B model pass per request adds an estimated **+35–45 ms** inter-token/prefill latency per request.
+3. *Assumption (Synthetic Generation Speed Estimate)*: Running open `Qwen2.5-72B-Instruct` (INT4) locally on 1× A100-80GB generates an estimated ~25 tokens/s.
+4. *Assumption (Prompt Engineering Latency Estimate)*: System prompt additions add ~200 prompt tokens per request, adding an estimated **+15–25 ms** prefill TTFT latency.
 
 ---
 
@@ -38,24 +39,24 @@ Based on a quantitative trade-off evaluation under our hardware, reviewer, and t
 
 ### Synthetic Data Dataset Calculation ($N$)
 * Target dataset size: 1,500 casual pairs per language × 6 languages = **9,000 synthetic pairs** (~1.35M output tokens).
-* Generation time on A100 GPU:
+* Estimated generation time on A100 GPU:
 
 $$\text{Synthetic Generation Time} = \frac{1,350,000 \text{ tokens}}{25 \text{ tok/s}} = 54,000 \text{ seconds} = \mathbf{15.0 \text{ GPU hours}} \quad (4.5\% \text{ of compute budget})$$
 
 ### Training Time Arithmetic
-* Fine-tuning FLM-4B with QLoRA ($r=16, \alpha=32$) on 9,000 pairs (1.35M tokens) takes ~45 minutes per epoch on 1× A100.
-* A full 3-epoch SFT run takes **2.25 GPU hours**. We can execute **20+ ablation experiments** well within our 336 GPU hour budget.
+* Fine-tuning FLM-4B with QLoRA ($r=16, \alpha=32$) on 9,000 pairs (1.35M tokens) takes an estimated ~45 minutes per epoch on 1× A100.
+* A full 3-epoch SFT run takes an estimated **2.25 GPU hours**. We can execute **20+ ablation experiments** well within our 336 GPU hour budget.
 
 ---
 
-## 3. Trade-Off Evaluation of Paths
+## 3. Trade-Off Evaluation of Paths (Assumption-Based Estimates)
 
 | Evaluation Dimension | Path (a): SFT Pass (LoRA/QLoRA) | Path (b): $\le 1\text{B}$ Rewriter Model | Path (c): Prompt-Engineering Only |
 |---|---|---|---|
 | **Serving Architecture** | Single FLM-4B model with merged weights | Dual sequential models (FLM-4B + Rewriter) | Single FLM-4B model with longer prompt |
-| **L4 Serving VRAM Overhead** | **0 GB extra** (weights merged) | **~2.0 GB** (based on 1B fp16 assumption) | 0 GB (weights) |
-| **Max 4096-Seq KV Batch** | **25 sequences** (100% capacity) | **~18 sequences** (VRAM stolen by 1B model) | ~23 sequences (VRAM used by prompt) |
-| **Inference Latency Impact** | **0 ms** extra latency | **+35–45 ms** extra ITL (2nd pass) | +15–25 ms extra TTFT (longer prefill) |
+| **L4 Serving VRAM Overhead (Estimated)** | **0 GB extra** (weights merged) | **~2.0 GB** (Estimated from 1B fp16 assumption) | 0 GB (weights) |
+| **Max 4096-Seq KV Batch (Estimated)** | **25 sequences** (100% capacity) | **~18 sequences** (Estimated reduction from VRAM) | ~23 sequences (Estimated reduction from prompt) |
+| **Inference Latency Impact (Estimated)** | **0 ms** extra latency | **+35–45 ms** extra ITL (Estimated 2nd pass) | **+15–25 ms** extra TTFT (Estimated prefill) |
 | **Tone Quality & Nuance** | Teaches colloquial Indic idioms natively | Good, but dependent on 1B model capacity | Limited; fails to inject unlearned idioms |
 | **Final Recommendation** | **SELECTED** | **REJECTED** (VRAM & Latency penalty) | **REJECTED** (Wastes prompt context) |
 

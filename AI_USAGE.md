@@ -25,15 +25,15 @@ In accordance with the assignment ground rules, AI tools (Antigravity paired cod
 
 1. **Premature Bug Categorization (Crucial Correction)**:
    * **AI Initial Bias**: AI initially attempted to categorize behaviors in `fertility.py` into a fixed list of "4 code bugs and 2 conceptual flaws" before running experiments.
-   * **Human Correction**: Enforced strict evidence-rule neutrality. Tested every behavior empirically before labeling it. Proved that `unicodedata.normalize("NFC", line)` is a **harmless/valid feature** (0 delta on clean text, prevents +55% token explosion on decomposed text), avoiding penalty points for unverified bug claims.
+   * **Human Correction**: Enforced strict evidence-rule neutrality. Tested every behavior empirically before labeling it. Proved that `unicodedata.normalize("NFC", line)` produced 0 token-count change on the clean FLORES corpus, establishing that the existing NFC step does not materially affect this benchmark.
 
 2. **Refining the Explanation of `len(line)`**:
    * **AI Failure**: AI initially drafted a claim that `len(line)` was a "code bug that confuses bytes with code points."
    * **Human Correction**: Re-framed correctly: Python `len(line)` accurately measures Unicode code points. However, evaluating cross-lingual fertility using code points introduces a **3x script encoding artifact** relative to UTF-8 bytes because Devanagari uses 3 bytes per code point.
 
-3. **Part C Pre-Selection Correction**:
-   * **AI Failure**: AI initially pre-selected SFT upfront before performing constraint trade-off arithmetic.
-   * **Human Correction**: Re-structured Part C to start neutrally from stated constraints (1x A100 GPU for 2 weeks, 30 total reviewer hours = 900 evaluated pairs max capacity for Hindi + Kannada), evaluate all 3 paths fairly, and derive the recommendation from first principles.
+3. **Part C Pre-Selection & Estimation Labels**:
+   * **AI Failure**: AI initially pre-selected SFT upfront before performing constraint trade-off arithmetic and presented derived latency/VRAM numbers without explicit estimation labels.
+   * **Human Correction**: Re-structured Part C to start neutrally from stated constraints (1x A100 GPU for 2 weeks, 30 total reviewer hours = 900 evaluated pairs max capacity for Hindi + Kannada), evaluate all 3 paths fairly, and explicitly label all derived table entries as **Assumption-based estimates**.
 
 4. **Dataset Split Name Mismatch**:
    * **AI Failure**: AI assumed the dataset split in `tomasmajercik/flores-parquet` was `'dev'`, triggering a runtime `ValueError`.
@@ -45,5 +45,5 @@ In accordance with the assignment ground rules, AI tools (Antigravity paired cod
 
 * [x] Every claim in Part A supported by before/after empirical numbers from `partA/fertility_audit.py`.
 * [x] KV-cache arithmetic ($112 \text{ KiB/token} \implies 25$ sequence limit) reconciled against `bench_log.csv`.
-* [x] Long-prompt batch-24 goodput derived via TWO independent methods ($200.9 \text{ gen tok/s}$).
-* [x] All 6 language constraints, A100 GPU hours ($336\text{h}$), and reviewer limits ($30\text{h} = 900$ pairs) reconciled in Part C arithmetic.
+* [x] Long-prompt batch-24 goodput derived via TWO independent methods ($200.92 \text{ gen tok/s}$).
+* [x] All 6 language constraints, A100 GPU hours ($336\text{h}$), and reviewer limits ($30\text{h} = 900$ pairs) reconciled in Part C arithmetic, with estimates explicitly labeled.

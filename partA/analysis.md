@@ -2,7 +2,7 @@
 
 ## Executive Summary & Corrected Headline Numbers
 
-The conclusion in `REPORT_v0.md` that Hindi serving costs ~6× more than English due to an inherent property of the script is **not supported by empirical measurement on Indic-aware tokenizers**. That 5.89× figure resulted from benchmarking a 2019 English-centric tokenizer (`gpt2`) combined with mathematical artifacts in word segmentation and character counting.
+The original 5.89× result in `REPORT_v0.md` is highly sensitive to tokenizer choice and to the metric/denominator used. Our corrected experiments show substantially different cross-language ratios with XLM-R and alternative denominators.
 
 When evaluated on a 100-sentence parallel FLORES-200 benchmark using an Indic-aware multilingual tokenizer (`xlm-roberta-base`), the experimentally measured token overhead relative to English is:
 
@@ -32,7 +32,7 @@ When evaluated on a 100-sentence parallel FLORES-200 benchmark using an Indic-aw
 ### Item 2: Lowercasing Normalization (`line.lower()`)
 * **Behavior**: Lowercases input strings. In `gpt2`, casing alters tokenization for Latin scripts (e.g. `"The"` vs `"the"` or capitalized proper nouns like `"Bengaluru"`).
 * **Measured Evidence**: On English FLORES text, raw tokens = 2,796 vs lowercased = 2,928 (**+132 tokens, +4.72% increase**). On Hindi text, raw tokens = 20,443 vs lowercased = 20,445 (**+2 tokens, +0.01% increase**).
-* **Quantitative Delta**: Lowercasing increases English GPT-2 tokenization by +4.72% while Hindi changes by only 2 tokens. Lowercasing alters the English baseline, shifting the apparent Hindi/English relative ratio from **7.31× to 6.98× (-4.50% reduction)**.
+* **Quantitative Delta**: Lowercasing increased English GPT-2 tokenization from 2,796 to 2,928 tokens (+4.72%), while Hindi changed by only 2 tokens. Lowercasing alters the English baseline, shifting the apparent Hindi/English relative ratio from **7.31× to 6.98× (-4.50% reduction)**.
 
 ### Item 3: Macro (Per-Line Mean) vs Micro (Corpus Ratio) Aggregation
 * **Behavior**: `fertility.py` computes `sum(per_line_fertility) / N` (macro-average) rather than total corpus tokens divided by total corpus words (`sum(tokens)/sum(words)`, micro-average).
@@ -45,14 +45,14 @@ When evaluated on a 100-sentence parallel FLORES-200 benchmark using an Indic-aw
 * **Quantitative Delta**: Code-point and UTF-8 byte denominators answer different questions. Comparing `tok/char` across English and Hindi yields a **7.21× ratio**, whereas `tok/byte` yields a **2.82× ratio**. The apparent fertility ratio changes substantially depending on the denominator.
 
 ### Item 5: Tokenizer Choice Mismatch
-* **Behavior**: Benchmarking Indic scripts using `gpt2` (50k English-centric vocabulary).
+* **Behavior**: Benchmarking Indic scripts using `gpt2` (English-centric byte-level BPE).
 * **Measured Evidence**: Under GPT-2, Hindi requires 20,443 tokens (7.31× English). Under XLM-RoBERTa, Hindi requires only 3,989 tokens (**1.28× English**).
-* **Finding**: The 6×-class overhead is not tokenizer-independent. Tokenizer choice is a major determinant of observed cross-language token overhead.
+* **Finding**: GPT-2's byte-level BPE tokenization produces substantially higher token counts for the Indic text in this benchmark than XLM-R. Tokenizer choice is a major determinant of observed cross-language token overhead.
 
 ### Item 6 (Suspicious-but-Valid Feature Check): Unicode NFC Normalization
 * **Behavior**: `unicodedata.normalize("NFC", line)` normalizes strings to Canonical Composition.
 * **Measured Evidence**: On clean Hindi text, raw tokens = 20,443 and NFC tokens = 20,443 (**0 delta**).
-* **Conclusion**: **NFC normalization produced no token-count change on the clean FLORES corpus**, indicating the input was already composed. The existing NFC step is harmless on clean text and valid best practice to prevent diacritic fragmentation.
+* **Conclusion**: NFC normalization produced no token-count change on the supplied clean FLORES corpus (0 delta). Therefore, the existing NFC step does not materially affect this benchmark.
 
 ---
 
@@ -71,14 +71,12 @@ $$\text{Primary Routing Metric} = \frac{\text{Total Tokens(Indic)}}{\text{Total 
 
 ---
 
-## 3. Production Monitoring Metric & Caveats
+## 3. Production Monitoring Strategy & Caveats
 
 ### Biggest Caveat
-FLORES-200 sentence benchmark measures formal domain text (news/wikipedia). Production user queries with mixed code-switching (Hinglish/Tanglish) may exhibit slightly higher token counts depending on tokenizer vocabulary coverage.
+FLORES-200 sentence benchmark measures formal domain text (news/wikipedia). Production user queries with mixed code-switching (Hinglish/Tanglish) may exhibit different token count characteristics depending on tokenizer vocabulary coverage.
 
-### Production Alert Metric
-To catch this analysis being wrong in production, monitor:
+### Production Monitoring Protocol
+Define the production alert threshold after collecting the baseline distribution of Indic vs English request token length in production logs:
 
 $$\text{Indic Output Token Ratio} = \frac{\text{Mean Output Tokens per Indic Request}}{\text{Mean Output Tokens per English Request (for same prompt task)}} \quad \text{in vLLM Serving Logs}$$
-
-* **Alert Threshold**: If production `Indic Output Token Ratio` exceeds **1.50×**, alert the serving team to potential tokenizer fallback or prompt verbosity regressions.

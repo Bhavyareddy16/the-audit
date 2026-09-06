@@ -28,7 +28,7 @@
 * **Result**:
   - Raw tokens: 20,443
   - NFC tokens: 20,443 (Delta = 0)
-* **Surprise / Revision**: **NFC normalization produced zero token-count change on clean text (0 delta)**. It is harmless on clean text and valid best practice to prevent decomposed diacritics from fragmenting into extra tokens.
+* **Surprise / Revision**: **NFC normalization produced zero token-count change on clean text (0 delta)**. Therefore, the existing NFC step does not materially affect this benchmark.
 
 ---
 
@@ -78,7 +78,7 @@
 ---
 
 ### Day 7: Tokenizer Comparison & Parallel Corpus Construction
-* **Hypothesis**: GPT-2 (50k English-only vocab) lacks Devanagari merges. An Indic-aware multilingual tokenizer (`xlm-roberta-base`) will show a different relative ratio.
+* **Hypothesis**: GPT-2's byte-level BPE tokenization produces substantially higher token counts for Indic text than XLM-R.
 * **Experiment**: Built a 100-sentence parallel FLORES-200 corpus (`eng`, `hin`, `tam`, `kan`) via `partA/build_corpus.py`. Evaluated `gpt2` vs `xlm-roberta-base`.
 * **Result**:
   - `gpt2`: English = 2,796 tok, Hindi = 20,443 tok (**7.31x English**), Tamil = 42,141 tok (**15.07x**), Kannada = 36,957 tok (**13.22x**).
@@ -105,8 +105,8 @@
 ### Day 9: Casualization Decision Memo & Pilot Experiment Design (Part C)
 * **Hypothesis**: Evaluate SFT vs Rewriter vs Prompt Engineering neutrally under constraints (1x A100, 30 reviewer hours = 900 evaluated pairs max capacity for Hindi + Kannada).
 * **Trade-Off**:
-  - Rewriter Model adds ~2GB VRAM overhead on L4 (reducing max KV batch size from 25 to 18 sequences) and +35-45ms latency.
-  - Prompt Engineering adds ~200 prompt tokens per request, increasing TTFT.
+  - Rewriter Model adds an estimated ~2GB VRAM overhead on L4 (reducing max KV batch size from 25 to ~18 sequences) and an estimated +35-45ms latency.
+  - Prompt Engineering adds an estimated ~200 prompt tokens per request, increasing TTFT.
   - SFT merges casual tone into weights (0 extra VRAM, 0 extra latency).
 * **Outcome**: Selected SFT on FLM-4B. Designed Day-1 pilot (300-500 pairs) to evaluate reviewer feedback before scaling. Authored `partC/memo.md`.
 
