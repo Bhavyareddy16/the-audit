@@ -24,25 +24,24 @@
 
 ### Day 2: Unicode Normalization Check (Dead End / Harmless Feature)
 * **Hypothesis**: Could `unicodedata.normalize("NFC", line)` in `read_lines()` be corrupting characters or splitting tokens?
-* **Experiment**: Tested token count on raw Hindi text, NFC normalized text, and NFD (decomposed) text.
+* **Experiment**: Tested token count on raw Hindi FLORES text vs NFC normalized text.
 * **Result**:
   - Raw tokens: 20,443
   - NFC tokens: 20,443 (Delta = 0)
-  - NFD tokens: 20,443 (Delta = 0 on clean text, but on decomposed text with uncombined diacritics, NFD causes token count to explode by +55%).
-* **Surprise / Revision**: **NFC normalization is HARMLESS and VALID best practice**. It prevents decomposed Indic diacritics from fragmenting into extra subword tokens. Flagging NFC as a bug would violate the evidence rule and incur penalty points.
+* **Surprise / Revision**: **NFC normalization produced zero token-count change on clean text (0 delta)**. It is harmless on clean text and valid best practice to prevent decomposed diacritics from fragmenting into extra tokens.
 
 ---
 
 ### Day 3: Word Boundary Segmentation Audit (`line.split(" ")`)
-* **Hypothesis**: `line.split(" ")` fails on double spaces, tabs, and attached punctuation, undercounting actual words.
-* **Experiment**: Compared `line.split(" ")` against Unicode regex word tokenization (`re.findall(r'\w+', line)`).
-* **Result**:
-  - `split(" ")` word count: 2,640 words
-  - `regex \w+` word count: 4,965 words
-  - Total tokens: 20,443
-  - Fertility (split): 7.74 tok/word
-  - Fertility (regex): 4.12 tok/word
-* **Delta**: `split(" ")` undercounts words by 46.8%, shifting fertility by **+3.63 tok/word (+88.07%)** due to double-space empty elements `""` and attached punctuation (`.` `,` `।` `?`).
+* **Hypothesis**: `line.split(" ")` fails on double spaces, tabs, and attached punctuation.
+* **Controlled Isolation Test**:
+  - `"hello world"` (single space) $\rightarrow$ `split(" ")` count = 2, `regex` count = 2.
+  - `"hello  world"` (double space) $\rightarrow$ `split(" ")` count = 3 (includes empty `""`), `regex` count = 2.
+  - `"hello\tworld"` (tab space) $\rightarrow$ `split(" ")` count = 1 (words stay merged), `regex` count = 2.
+* **Corpus Result**:
+  - `split(" ")` word count: 2,640 words $\implies$ Fertility = 7.74 tok/word.
+  - `regex \w+` word count: 4,965 words $\implies$ Fertility = 4.12 tok/word.
+* **Delta**: Observed fertility difference is **+3.63 tok/word (+88.07%)**.
 
 ---
 
@@ -50,9 +49,9 @@
 * **Hypothesis**: Lowercasing Latin text alters GPT-2 subword tokenization while leaving Devanagari (caseless) unchanged.
 * **Experiment**: Measured token counts on raw vs lowercased text for English and Hindi.
 * **Result**:
-  - English raw: 2,796 tokens vs lowercased: 2,928 tokens (**+132 tokens, +4.72% delta**).
-  - Hindi raw: 20,443 tokens vs lowercased: 20,445 tokens (**+2 tokens, +0.00% delta**).
-* **Finding**: In GPT-2, capitalized words (e.g. `"The"`, `"Bengaluru"`) have distinct BPE merge entries. Lowercasing English alters English subword tokenization while Hindi remains fixed, introducing cross-script normalization bias.
+  - English raw: 2,796 tokens vs lowercased: 2,928 tokens (**+132 tokens, +4.72% increase**).
+  - Hindi raw: 20,443 tokens vs lowercased: 20,445 tokens (**+2 tokens, +0.01% increase**).
+* **Finding**: Lowercasing increased English GPT-2 tokenization by +4.72% while Hindi changed by only 2 tokens. Lowercasing alters the English baseline, shifting the relative ratio from **7.31x to 6.98x (-4.50% reduction)**.
 
 ---
 
@@ -60,31 +59,31 @@
 * **Hypothesis**: `sum(per_line_ratios) / N` (macro-average) over-weights short outlier lines compared to global corpus ratio `sum(tokens)/sum(words)` (micro-average).
 * **Experiment**: Evaluated macro vs micro averages on English and Hindi FLORES sets.
 * **Result**:
-  - English: Macro = 1.2445 vs Micro = 1.2269 (+0.0176 delta).
-  - Hindi: Macro = 4.0955 vs Micro = 4.1174 (-0.0219 delta).
-* **Delta**: Macro aggregation shifts the relative HIN/ENG fertility ratio from **3.36x (micro)** to **3.29x (macro)**.
+  - English: Macro = 1.2445 vs Micro = 1.2269.
+  - Hindi: Macro = 4.0955 vs Micro = 4.1174.
+* **Delta**: Macro aggregation shifts the relative HIN/ENG fertility ratio from **3.36x (micro)** to **3.29x (macro)** (a **~2.0% difference**).
 
 ---
 
 ### Day 6: Code Point (`len(line)`) vs Byte Denominator Audit
-* **Hypothesis**: Python `len(line)` measures Unicode code points. Because Devanagari uses ~3 UTF-8 bytes per code point, `tok/char` creates a 3x script encoding artifact relative to `tok/byte`.
+* **Hypothesis**: Python `len(line)` measures Unicode code points. Because Devanagari uses ~3 UTF-8 bytes per code point, `tok/char` creates a different ratio relative to `tok/byte`.
 * **Experiment**: Measured `tok/char` vs `tok/byte` across English and Hindi.
 * **Result**:
   - English: `tok/char` = 0.2103, `tok/byte` = 0.2101 (1 byte/char).
   - Hindi: `tok/char` = 1.5159, `tok/byte` = 0.5924 (~3 bytes/code point).
   - Relative `tok/char` ratio (HIN/ENG) = **7.21x**.
   - Relative `tok/byte` ratio (HIN/ENG) = **2.82x**.
-* **Finding**: `len(line)` is not a code bug per se (it measures code points), but `tok/char` introduces a **3x multiplicative artifact** when comparing Latin to Indic scripts because Devanagari uses 3 UTF-8 bytes per code point.
+* **Finding**: Code point and UTF-8 byte denominators answer different operational questions.
 
 ---
 
 ### Day 7: Tokenizer Comparison & Parallel Corpus Construction
-* **Hypothesis**: GPT-2 (50k English-only vocab) lacks Devanagari merges. An Indic-aware multilingual tokenizer (`xlm-roberta-base`) will eliminate the claimed 6x penalty.
+* **Hypothesis**: GPT-2 (50k English-only vocab) lacks Devanagari merges. An Indic-aware multilingual tokenizer (`xlm-roberta-base`) will show a different relative ratio.
 * **Experiment**: Built a 100-sentence parallel FLORES-200 corpus (`eng`, `hin`, `tam`, `kan`) via `partA/build_corpus.py`. Evaluated `gpt2` vs `xlm-roberta-base`.
 * **Result**:
   - `gpt2`: English = 2,796 tok, Hindi = 20,443 tok (**7.31x English**), Tamil = 42,141 tok (**15.07x**), Kannada = 36,957 tok (**13.22x**).
   - `xlm-roberta-base`: English = 3,120 tok, Hindi = 3,989 tok (**1.28x English**), Tamil = 4,277 tok (**1.37x**), Kannada = 4,310 tok (**1.38x**).
-* **Revision**: The 6x cost claim is an artifact of choosing an English-centric tokenizer. With an Indic-aware tokenizer, Hindi cost overhead is **only +28%**.
+* **Revision**: The 6x-class overhead is not tokenizer-independent. Tokenizer choice is a major determinant of observed cross-language token overhead.
 
 ---
 
