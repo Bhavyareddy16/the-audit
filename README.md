@@ -26,10 +26,10 @@ An evidence-first technical audit evaluating multilingual LLM tokenization effic
 ### 1. Tokenizer Audit (Part A)
 * **v0 Report Claim Sensitivity**: The original 5.89× result in `REPORT_v0.md` is highly sensitive to tokenizer choice and to the metric/denominator used.
 * **Measured Evidence**:
-  - **Tokenizer Sensitivity**: GPT-2's byte-level BPE tokenization produces substantially higher token counts for Indic text than XLM-R. On an Indic-aware tokenizer (`xlm-roberta-base`), Hindi token overhead relative to English is **1.28× (+28% cost)**, Tamil is **1.37×**, and Kannada is **1.38×**.
-  - **Script Encoding Artifact**: Python `len(line)` measures Unicode code points. Because Devanagari uses ~3 UTF-8 bytes per character, `tok/char` created a **3× mathematical artifact** (7.21× code point ratio vs 2.82× byte ratio).
-  - **Segmentation & Aggregation**: `split(" ")` undercounted words by 46.8% (+88.07% fertility shift), while macro-averaging introduced a +2.0% line length skew.
-  - **Normalization Check**: NFC normalization produced no token-count change on the supplied clean FLORES corpus (0 delta). Therefore, the existing NFC step does not materially affect this benchmark.
+  - **Tokenizer Sensitivity**: GPT-2's byte-level BPE produces substantially higher token counts for the Indic corpus than XLM-R in this benchmark. On an Indic-aware tokenizer (`xlm-roberta-base`), Hindi token overhead relative to English is **1.28× (+28% cost)**, Tamil is **1.37×**, and Kannada is **1.38×**.
+  - **Script Encoding Impact**: Because UTF-8 byte length differs substantially from Unicode code-point count across scripts, the apparent Hindi/English ratio changes from **7.21× under code points** to **2.82× under bytes**.
+  - **Segmentation & Aggregation**: Literal-space splitting is sensitive to repeated spaces and tabs, producing an **88.07% difference** in the observed fertility calculation on the benchmark corpus relative to the comparison word-count method, while macro-averaging introduced a **~2.0% difference** relative to micro-averaging.
+  - **Normalization Check**: NFC normalization produced **0 token-count change** on the supplied clean corpus; therefore, it did not materially affect this benchmark.
 
 ### 2. Capacity Reconciliation & Serving (Part B)
 * **KV-Cache Footprint**: Exact math yields **114,688 bytes/token** (**112 KiB/token** across 28 layers).
@@ -38,7 +38,7 @@ An evidence-first technical audit evaluating multilingual LLM tokenization effic
 * **Two-Method Goodput Derivation**: Batch-24 long-prompt generation goodput was derived in two independent ways (**200.92 gen tok/s** via wall clock vs **200.93 gen tok/s** via token fraction correction), proving long prompts generate output text **31.77% slower** than short prompts ($294.46 \text{ gen tok/s}$).
 
 ### 3. Architectural Decision Memo (Part C)
-* **Trade-Off Evaluation**: Evaluated SFT vs Rewriter Model vs Prompt Engineering under 1× A100 GPU ($336\text{h}$) and 1 native reviewer ($30\text{h} = 900$ evaluated pairs max capacity for Hindi + Kannada).
+* **Trade-Off Evaluation**: Evaluated SFT vs Rewriter Model vs Prompt Engineering under 1× A100 GPU ($336\text{h}$) and 1 native reviewer ($30\text{h} = 900$ theoretical evaluated pairs max capacity assuming 2 min/pair for Hindi + Kannada).
 * **Recommendation**: Selected **SFT on FLM-4B using QLoRA**. SFT embeds casual phrasing into model weights with 0 serving VRAM overhead and 0 decode latency penalty (unlike the Rewriter Model which steals an estimated ~2GB VRAM and adds an estimated +35–45ms latency).
 * **Day-1 Pilot Experiment**: Designed a **300–500 sample pilot experiment** (Hindi + Kannada) for initial reviewer scoring before scaling synthetic dataset generation.
 

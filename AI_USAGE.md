@@ -29,7 +29,7 @@ In accordance with the assignment ground rules, AI tools (Antigravity paired cod
 
 2. **Refining the Explanation of `len(line)`**:
    * **AI Failure**: AI initially drafted a claim that `len(line)` was a "code bug that confuses bytes with code points."
-   * **Human Correction**: Re-framed correctly: Python `len(line)` accurately measures Unicode code points. However, evaluating cross-lingual fertility using code points introduces a **3x script encoding artifact** relative to UTF-8 bytes because Devanagari uses 3 bytes per code point.
+   * **Human Correction**: Re-framed correctly: Python `len(line)` accurately measures Unicode code points. However, evaluating cross-lingual fertility using code points introduces a substantial script encoding difference relative to UTF-8 bytes because Devanagari uses ~3 bytes per code point.
 
 3. **Part C Pre-Selection & Estimation Labels**:
    * **AI Failure**: AI initially pre-selected SFT upfront before performing constraint trade-off arithmetic and presented derived latency/VRAM numbers without explicit estimation labels.
